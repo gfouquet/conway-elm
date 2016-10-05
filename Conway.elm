@@ -4,6 +4,10 @@ import Html exposing (..)
 import Html.App as App
 import Html.Attributes as Attr
 import Html.Attributes exposing (..)
+import Html.Events exposing (..)
+import String exposing (toInt)
+import Array exposing (Array, toList)
+import Debug exposing (..)
 
 main =
     App.program
@@ -21,8 +25,11 @@ type alias Model =
 
     }
 
-type alias Experiment = List (List Cell)
+type alias Experiment = Array (Array Cell)
 type alias Cell = Bool
+type alias Row = Int
+type alias Col = Int
+type alias Coord = (Row, Col)
 
 init : (Model, Cmd Msg)
 init =
@@ -34,16 +41,30 @@ init =
 
 emptyCells : Int -> Experiment
 emptyCells width =
-    [1..width] |> List.map (\r -> [1..width] |> List.map (\c -> False))
+    Array.initialize width (\r -> Array.initialize width (\c -> False))
 
 
 -- UPDATE
-type Msg
-    = None
+type Msg =
+    Resize String
+    | ToggleCell Coord Bool
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-    (model, Cmd.none)
+    case log "message" msg of
+        Resize val ->
+            let width = Result.withDefault 0 (toInt val)
+            in ({ model | experiment = emptyCells width, width = width }, Cmd.none)
+        ToggleCell coord cell ->
+            ({ model | experiment = toggle model.experiment coord }, Cmd.none)
+
+toggle : Experiment -> Coord -> Experiment
+toggle experiment coord =
+    let (row, col) = coord
+        rcell = Maybe.withDefault Array.empty (Array.get row experiment)
+        cell = Maybe.withDefault False (Array.get col rcell)
+    in Array.set row (Array.set col (not cell) rcell) experiment
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -61,6 +82,7 @@ view model =
                 , Attr.max "30"
                 , value (toString model.width)
                 , size 5
+                , onInput Resize
                 ] []
             , input [ type' "button", value "start"] []
             , input [ type' "button", value "stop"] []
@@ -72,12 +94,12 @@ view model =
 
 definitionTable : Experiment -> Html Msg
 definitionTable cells =
-    table [] (List.indexedMap (\row cs -> definitionRow row cs) cells)
+    table [] (cells |> Array.indexedMap (\row cs -> definitionRow row cs) |> toList)
 
-definitionRow : Int -> List Cell -> Html Msg
+definitionRow : Row -> Array Cell -> Html Msg
 definitionRow row cells =
-    tr [] (List.indexedMap (\col cs -> definitionCell row col cs) cells)
+    tr [] (cells |> Array.indexedMap (\col cs -> definitionCell row col cs) |> toList)
 
-definitionCell : Int -> Int -> Cell -> Html Msg
+definitionCell : Row -> Col -> Cell -> Html Msg
 definitionCell row col cell =
-    td [] [ input [ type' "checkbox", checked cell ] [] ]
+    td [] [ input [ type' "checkbox", checked cell, onCheck (ToggleCell (row,col)) ] [] ]
