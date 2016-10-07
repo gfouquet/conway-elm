@@ -8,6 +8,7 @@ import Html.Events exposing (..)
 import String exposing (toInt)
 import Array exposing (Array, toList)
 import Debug exposing (..)
+import Css exposing (margin, padding, backgroundColor, height, width, px, rgb)
 
 main =
     App.program
@@ -71,6 +72,8 @@ subscriptions model =
     Sub.none
 
 -- VIEW
+styles =
+    Css.asPairs >> Html.Attributes.style
 
 view : Model -> Html Msg
 view model =
@@ -89,17 +92,36 @@ view model =
             , input [ type' "button", value "random"] []
             ]
         , definitionTable model.experiment
-        , div [] []
+        , experimentPane model.experiment
         ]
 
 definitionTable : Experiment -> Html Msg
-definitionTable cells =
-    table [] (cells |> Array.indexedMap (\row cs -> definitionRow row cs) |> toList)
-
-definitionRow : Row -> Array Cell -> Html Msg
-definitionRow row cells =
-    tr [] (cells |> Array.indexedMap (\col cs -> definitionCell row col cs) |> toList)
+definitionTable cells = (tableBuilder definitionCell) cells
 
 definitionCell : Row -> Col -> Cell -> Html Msg
 definitionCell row col cell =
     td [] [ input [ type' "checkbox", checked cell, onCheck (ToggleCell (row,col)) ] [] ]
+
+experimentPane : Experiment -> Html Msg
+experimentPane cells = (tableBuilder experimentCell) cells
+
+experimentCell row col cell =
+    let style cell =
+        if cell then rgb 0 128 128 else rgb 255 255 255
+    in
+        td [ styles
+                [ backgroundColor (style cell)
+                , Css.width (px 5)
+                , Css.height (px 5)
+                ]
+            ] [text " "]
+
+tableBuilder : (Row -> Col -> Cell -> Html Msg) -> (Experiment -> Html Msg)
+tableBuilder cellBuilder =
+    \cells ->
+        table [style [("border-collapse", "collapse")]] (cells |> Array.indexedMap (\row cs -> (rowBuilder cellBuilder) row cs) |> toList)
+
+rowBuilder : (Row -> Col -> Cell -> Html Msg) -> (Row -> Array Cell -> Html Msg)
+rowBuilder cellCell =
+    \row cells ->
+        tr [ styles [margin (px 0), padding (px 0)] ] (cells |> Array.indexedMap (\col cs -> cellCell row col cs) |> toList)
