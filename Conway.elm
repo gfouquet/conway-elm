@@ -6,9 +6,11 @@ import Html.Attributes as Attr
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import String exposing (toInt)
-import Array exposing (Array, toList)
+import Array exposing (Array, toList, fromList)
 import Debug exposing (..)
 import Css exposing (margin, padding, backgroundColor, height, width, px, rgb)
+import Random exposing (Seed, initialSeed)
+import Time
 
 main =
     App.program
@@ -23,7 +25,8 @@ main =
 type alias Model =
     { width : Int
     , experiment : Experiment
-
+    , state : State
+    , randomSeed : Seed
     }
 
 type alias Experiment = Array (Array Cell)
@@ -31,6 +34,7 @@ type alias Cell = Bool
 type alias Row = Int
 type alias Col = Int
 type alias Coord = (Row, Col)
+type State = Running | Stopped
 
 init : (Model, Cmd Msg)
 init =
@@ -38,17 +42,37 @@ init =
     in
         ({ width = width
         , experiment = emptyCells width
+        , state = Stopped
+        -- random seed should be initialized with current time when I understand how Time.now works
+        , randomSeed = initialSeed <| 1234
         }, Cmd.none)
 
 emptyCells : Int -> Experiment
 emptyCells width =
     Array.initialize width (\r -> Array.initialize width (\c -> False))
 
+randomCells : Seed -> Int -> (Experiment, Seed)
+randomCells initSeed width =
+    let
+        rowSupplier = \s -> Random.step (Random.list width Random.bool) s
+        pairs = List.foldl
+            (\r acc -> case List.head acc of
+                Nothing -> [rowSupplier initSeed]
+                Just (_, seed) -> rowSupplier seed :: acc
+            ) [] [1..width]
+        newSeed = case List.head pairs of
+            Nothing -> initSeed
+            Just (_, seed) -> seed
+    in
+        (log "pairs" pairs |> List.map (\(row,_) -> fromList row) |> fromList
+        , log "new seed" newSeed)
 
 -- UPDATE
 type Msg =
     Resize String
     | ToggleCell Coord Bool
+    | Clear
+    | RandomExperiment
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -58,6 +82,8 @@ update msg model =
             in ({ model | experiment = emptyCells width, width = width }, Cmd.none)
         ToggleCell coord cell ->
             ({ model | experiment = toggle model.experiment coord }, Cmd.none)
+        Clear -> ({ model | experiment = emptyCells model.width }, Cmd.none)
+        RandomExperiment -> (randomExperiment (log "prev model" model), Cmd.none)
 
 toggle : Experiment -> Coord -> Experiment
 toggle experiment coord =
@@ -66,6 +92,10 @@ toggle experiment coord =
         cell = Maybe.withDefault False (Array.get col rcell)
     in Array.set row (Array.set col (not cell) rcell) experiment
 
+randomExperiment : Model -> Model
+randomExperiment model =
+    let (exp, seed) = randomCells model.randomSeed model.width
+    in log "new model" { model | experiment = exp, randomSeed = seed }
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -87,9 +117,10 @@ view model =
                 , size 5
                 , onInput Resize
                 ] []
-            , input [ type' "button", value "start"] []
-            , input [ type' "button", value "stop"] []
-            , input [ type' "button", value "random"] []
+            , input [ type' "button", value "start", disabled (model.state == Running)] []
+            , input [ type' "button", value "stop", disabled (model.state == Stopped)] []
+            , input [ type' "button", value "random", disabled (model.state == Running), onClick RandomExperiment] []
+            , input [ type' "button", value "clear", disabled (model.state == Running), onClick Clear] []
             ]
         , definitionTable model.experiment
         , experimentPane model.experiment
