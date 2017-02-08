@@ -1,4 +1,4 @@
-module Experiment exposing (Experiment, Cell, empty, random, toggle, next)
+module Experiment exposing (Experiment, Cell, empty, randomField, initField, toggle, next)
 
 import Coord exposing (..)
 import Array exposing (Array, fromList, toList)
@@ -10,28 +10,21 @@ import Maybe exposing (withDefault)
 
 type alias Experiment = Array (Array Cell)
 type alias Cell = Bool
+type alias Field = List (List Bool)
 
 empty : Int -> Experiment
 empty width =
     A.initialize width (\r -> A.initialize width (\c -> False))
 
 
-random : Seed -> Int -> (Experiment, Seed)
-random initSeed width =
-    let
-        pairs = L.foldl
-            (\r acc -> case L.head acc of
-                Nothing -> [randomRow width initSeed]
-                Just (_, seed) -> randomRow width seed :: acc
-            ) [] [1..width]
+randomField : Int -> Random.Generator Field
+randomField width =
+    Random.list width (Random.list width Random.bool)
 
-        newSeed = case L.head pairs of
-            Nothing -> initSeed
-            Just (_, seed) -> seed
+initField : Field -> Experiment
+initField field =
+    fromList (L.map fromList field)
 
-    in
-        (log "pairs" pairs |> L.map (\(row,_) -> fromList row) |> fromList
-        , log "new seed" newSeed)
 
 
 toggle : Experiment -> Coord -> Experiment

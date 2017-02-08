@@ -52,6 +52,7 @@ type Msg =
     | ToggleCell Coord Bool
     | Clear
     | RandomExperiment
+    | InitExperiment (List (List Bool))
     | Start
     | Stop
     | NextBatch Time
@@ -65,15 +66,12 @@ update msg model =
         ToggleCell coord cell ->
             ({ model | experiment = Experiment.toggle model.experiment coord }, Cmd.none)
         Clear -> ({ model | experiment = Experiment.empty model.width }, Cmd.none)
-        RandomExperiment -> (randomExperiment (log "prev model" model), Cmd.none)
+        RandomExperiment -> (model, Random.generate InitExperiment (Experiment.randomField model.width))
+        InitExperiment field -> ({ model | experiment = Experiment.initField field}, Cmd.none)
         Start -> ({ model | state = Running }, Cmd.none)
         Stop -> ({ model | state = Stopped }, Cmd.none)
         NextBatch time -> ({ model | experiment = Experiment.next model.experiment}, Cmd.none)
 
-randomExperiment : Model -> Model
-randomExperiment model =
-    let (exp, seed) = Experiment.random model.randomSeed model.width
-    in log "new model" { model | experiment = exp, randomSeed = seed }
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
